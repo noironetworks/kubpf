@@ -1,2 +1,2 @@
 # kubpf
-User agent for ebpf code
+Basic observability with ebpf on Kubernetes
