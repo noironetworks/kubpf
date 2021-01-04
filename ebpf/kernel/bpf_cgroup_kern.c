@@ -53,13 +53,9 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
         };
         struct iphdr *iph = (struct iphdr *)((void *)(long)skb->data);
 	if((void *)(iph+1) > (void *)(long)(skb->data_end)) {
-	        char fmt[] = "Returning from ip hdr check";
-		bpf_trace_printk(fmt,sizeof(fmt));
 		return 1;
 	}
         if (iph->version == 4) {
-	    char fmt[] = "Got an IP packet";
-	    bpf_trace_printk(fmt,sizeof(fmt));
             v4_key.l4.ip_proto = iph->protocol;
 	    v4_key.src_ip = iph->saddr;
 	    v4_key.dst_ip = iph->daddr;
@@ -67,8 +63,6 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
             if(v4_key.l4.ip_proto == IPPROTO_TCP) {
                 struct tcphdr *tcph = (struct tcphdr *)((__u8 *)(long)(skb->data) + l3_offset);
                 if(((void *)(tcph + 1) > (void *)(long)(skb->data_end))) {
-                    char fmt[] = "Returning from tcp hdr check";
-                    bpf_trace_printk(fmt,sizeof(fmt));
                     return 1;
                 }
 		v4_key.l4.sport = tcph->source;
@@ -76,8 +70,6 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
             } else if (v4_key.l4.ip_proto == IPPROTO_UDP) {
                 struct udphdr *udph = (struct udphdr *)((__u8 *)(long)skb->data + l3_offset);
                 if(((void *)(udph + 1) > (void *)(long)(skb->data_end))) {
-                    char fmt[] = "Returning from udp hdr check";
-                    bpf_trace_printk(fmt,sizeof(fmt));
                     return 1;
                 }
 		v4_key.l4.sport = udph->source;
@@ -110,8 +102,6 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
             if(v6_key.l4.ip_proto == IPPROTO_TCP) {    
                 struct tcphdr *tcph = (struct tcphdr *)((__u8 *)(long)(skb->data) + l3_offset);
                 if(((void *)(tcph + 1) > (void *)(long)(skb->data_end))) {
-                    char fmt[] = "Returning from tcp hdr check";
-                    bpf_trace_printk(fmt,sizeof(fmt));
                     return 1;
                 }
 		v6_key.l4.sport = tcph->source;
@@ -119,8 +109,6 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
             } else if (v6_key.l4.ip_proto == IPPROTO_UDP) {
                 struct udphdr *udph = (struct udphdr *)((__u8 *)(long)skb->data + l3_offset);
                 if(((void *)(udph + 1) > (void *)(long)(skb->data_end))) {
-                    char fmt[] = "Returning from udp hdr check";
-                    bpf_trace_printk(fmt,sizeof(fmt));
                     return 1;
                 }
 		v6_key.l4.sport = udph->source;

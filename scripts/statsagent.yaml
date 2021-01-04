@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: statsagent-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: statsagent
+  namespace: statsagent-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-agents
+rules:
+- apiGroups: [""]
+  resources: ["pods","services", "endpoints", "namespaces"]
+  verbs: ["get", "watch", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: monitor-binding
+subjects:
+- kind: ServiceAccount
+  name: statsagent
+  namespace: statsagent-system
+roleRef:
+  kind: ClusterRole
+  name: monitoring-agents
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: statsagent
+  namespace: statsagent-system
+  labels:
+    k8s-app: statsagent
+spec:
+  selector:
+    matchLabels:
+      name: statsagent
+  template:
+    metadata:
+      labels:
+        name: statsagent
+    spec:
+      serviceAccountName: statsagent
+      tolerations:
+      - key: node-role.kubernetes.io/master
+        effect: NoSchedule
+      containers:
+      - name: statsagent
+        image: stalactite/statsagent:latest
+        securityContext:
+          capabilities:
+            add:
+            - SYS_ADMIN
+            - NET_ADMIN
+      hostNetwork: true

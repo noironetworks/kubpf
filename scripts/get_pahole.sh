@@ -6,3 +6,4 @@ mkdir build
 cd build
 cmake -D__LIB=lib ..
 make install
+ldconfig
