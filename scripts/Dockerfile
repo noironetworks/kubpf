@@ -16,5 +16,7 @@ RUN mkdir -p /bin
 COPY out/bpftool /bin/
 COPY out/bpf_cgroup_kern.o /bin/
 COPY out/statsagent /bin/
-CMD /bin/statsagent
+COPY load_attach_bpf_cgroup.sh /bin/
+COPY launch_statsagent.sh /bin/
+CMD /bin/launch_statsagent.sh
 

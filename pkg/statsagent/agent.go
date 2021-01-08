@@ -25,13 +25,21 @@ type PodInfo struct {
 	PodIP string
 }
 
+type SvcInfo struct {
+	ClusterIP string
+	SvcType   string
+}
+
 type StatsAgent struct {
 	config      *StatsAgentConfig
 	log         *logrus.Logger
 	env         Environment
 	podInformer cache.SharedIndexInformer
+	svcInformer cache.SharedIndexInformer
 	podInfo     map[string]PodInfo
 	podIpToName map[string]string
+	svcInfo     map[string]SvcInfo
+	svcIpToName map[string]string
 	stateMutex  sync.Mutex
 }
 
@@ -62,6 +70,8 @@ func NewStatsAgent(config *StatsAgentConfig, logger *logrus.Logger, env Environm
 		env:         env,
 		podInfo:     make(map[string]PodInfo),
 		podIpToName: make(map[string]string),
+		svcInfo:     make(map[string]SvcInfo),
+		svcIpToName: make(map[string]string),
 	}
 	return statsAgent
 }

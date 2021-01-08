@@ -68,6 +68,8 @@ func (agent *StatsAgent) podUpdated(obj interface{}) {
 	podKey := fmt.Sprintf("%s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
 	var podInfo PodInfo
 	podInfo.PodIP = pod.Status.PodIP
+	agent.stateMutex.Lock()
+	defer agent.stateMutex.Unlock()
 	agent.podInfo[podKey] = podInfo
 	agent.podIpToName[pod.Status.PodIP] = podKey
 	agent.log.Debug("Added pod ", podKey)
@@ -76,6 +78,8 @@ func (agent *StatsAgent) podUpdated(obj interface{}) {
 func (agent *StatsAgent) podDeleted(obj interface{}) {
 	pod := obj.(*v1.Pod)
 	podKey := fmt.Sprintf("%s/%s", pod.ObjectMeta.Namespace, pod.ObjectMeta.Name)
+	agent.stateMutex.Lock()
+	defer agent.stateMutex.Unlock()
 	delete(agent.podInfo, podKey)
 	delete(agent.podIpToName, pod.Status.PodIP)
 	agent.log.Debug("Deleted pod ", podKey)

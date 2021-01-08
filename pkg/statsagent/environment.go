@@ -81,6 +81,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	//env.agent.log.Debug("Starting remaining informers")
 	//env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
+	go env.agent.svcInformer.Run(stopCh)
 	cache.WaitForCacheSync(stopCh, env.agent.podInformer.HasSynced)
 	//go env.agent.controllerInformer.Run(stopCh)
 	//env.agent.serviceEndPoints.Run(stopCh)
@@ -97,8 +98,8 @@ func (env *K8sEnvironment) Init(agent *StatsAgent) error {
 	env.agent.log.Debug("Initializing informers")
 	//env.agent.initNodeInformerFromClient(env.kubeClient)
 	env.agent.initPodInformerFromClient(env.kubeClient)
+	env.agent.initServiceInformerFromClient(env.kubeClient)
 	//env.agent.serviceEndPoints.InitClientInformer(env.kubeClient)
-	//env.agent.initServiceInformerFromClient(env.kubeClient)
 	//env.agent.initNamespaceInformerFromClient(env.kubeClient)
 	return nil
 }
