@@ -41,6 +41,7 @@ type StatsAgent struct {
 	svcInfo     map[string]SvcInfo
 	svcIpToName map[string]string
 	stateMutex  sync.Mutex
+	metrics     map[string]MetricsEntry
 }
 
 type StatsAgentConfig struct {
@@ -51,7 +52,13 @@ type StatsAgentConfig struct {
 	//KubeConfig string `json:"kubeconfig,omitempty"`
 
 	// Name of Kubernetes node on which this agent is running
-	//NodeName string `json:"node-name,omitempty"`
+	NodeName string `json:"node-name,omitempty"`
+
+	// Path to which ebpf maps should be pinned, some where in /sys/fs/bpf
+	EbpfPinnedMapPath string `json:"ebpf-pinnedmappath,omitempty"`
+
+	// Interval in which stats should be scanned
+	StatsInterval int `json: stats-interval in seconds,omitempty`
 
 	// TCP port to run status server on (or 0 to disable)
 	StatusPort int `json:"status-port,omitempty"`
@@ -59,7 +66,10 @@ type StatsAgentConfig struct {
 
 func (config *StatsAgentConfig) InitFlags() {
 	flag.StringVar(&config.LogLevel, "log-level", "debug", "Log level")
+	flag.StringVar(&config.EbpfPinnedMapPath, "ebpf-pinnedmappath", "/sys/fs/bpf/pinned_maps", "Path to which ebpf maps should be pinned")
+	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 	flag.IntVar(&config.StatusPort, "status-port", 8010, "TCP port to run status server on (or 0 to disable)")
+	flag.IntVar(&config.StatsInterval, "stats-interval", 120, "Time in seconds between stats collection runs")
 }
 
 func NewStatsAgent(config *StatsAgentConfig, logger *logrus.Logger, env Environment) *StatsAgent {
@@ -72,6 +82,7 @@ func NewStatsAgent(config *StatsAgentConfig, logger *logrus.Logger, env Environm
 		podIpToName: make(map[string]string),
 		svcInfo:     make(map[string]SvcInfo),
 		svcIpToName: make(map[string]string),
+		metrics:     make(map[string]MetricsEntry),
 	}
 	return statsAgent
 }

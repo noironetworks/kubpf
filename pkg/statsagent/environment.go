@@ -15,11 +15,13 @@
 package statsagent
 
 import (
+	"errors"
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+	"os"
 )
 
 type Environment interface {
@@ -36,19 +38,18 @@ type K8sEnvironment struct {
 
 func NewK8sEnvironment(config *StatsAgentConfig, log *logrus.Logger) (*K8sEnvironment, error) {
 
-	//	if config.NodeName == "" {
-	//                config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
-	//        }
-	//        if config.NodeName == "" {
-	//                err := errors.New("Node name not specified and $KUBERNETES_NODE_NAME empty")
-	//                log.Error(err.Error())
-	//                return nil, err
-	//        }
+	if config.NodeName == "" {
+		config.NodeName = os.Getenv("KUBERNETES_NODE_NAME")
+	}
+	if config.NodeName == "" {
+		err := errors.New("Node name not specified and $KUBERNETES_NODE_NAME empty")
+		log.Error(err.Error())
+		return nil, err
+	}
 
-	//        log.WithFields(logrus.Fields{
-	//                "kubeconfig": config.KubeConfig,
-	//                "node-name":  config.NodeName,
-	//        }).Info("Setting up Kubernetes environment")
+	log.WithFields(logrus.Fields{
+		"node-name": config.NodeName,
+	}).Info("Setting up Kubernetes environment")
 
 	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
@@ -71,13 +72,11 @@ func NewK8sEnvironment(config *StatsAgentConfig, log *logrus.Logger) (*K8sEnviro
 
 func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	//env.agent.log.Debug("Discovering node configuration")
-
 	//env.agent.log.Debug("Starting node informer")
 	//go env.agent.nodeInformer.Run(stopCh)
 	//env.agent.log.Info("Waiting for node cache sync")
 	//cache.WaitForCacheSync(stopCh, env.agent.nodeInformer.HasSynced)
 	//env.agent.log.Info("Node cache sync successful")
-
 	//env.agent.log.Debug("Starting remaining informers")
 	//env.agent.log.Debug("Exporting node info: ", env.agent.config.NodeName)
 	go env.agent.podInformer.Run(stopCh)
@@ -89,6 +88,7 @@ func (env *K8sEnvironment) PrepareRun(stopCh <-chan struct{}) (bool, error) {
 	//go env.agent.nsInformer.Run(stopCh)
 	//env.agent.log.Info("Waiting for cache sync for remaining objects")
 	env.agent.log.Info("Cache sync successful")
+	go env.agent.RunMetrics(stopCh)
 	return true, nil
 }
 
@@ -101,5 +101,7 @@ func (env *K8sEnvironment) Init(agent *StatsAgent) error {
 	env.agent.initServiceInformerFromClient(env.kubeClient)
 	//env.agent.serviceEndPoints.InitClientInformer(env.kubeClient)
 	//env.agent.initNamespaceInformerFromClient(env.kubeClient)
+	env.agent.log.Debug("Registering Metrics")
+	env.agent.RegisterMetrics()
 	return nil
 }

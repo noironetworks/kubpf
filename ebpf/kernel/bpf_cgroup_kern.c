@@ -20,7 +20,6 @@ static inline int ip_is_fragment(struct __sk_buff *ctx, __u64 nhoff)
 }
 #endif
 
-
 static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_direction dir)
 {
 	struct inet_v4_flow v4_key = {
@@ -60,6 +59,12 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
 	    v4_key.src_ip = iph->saddr;
 	    v4_key.dst_ip = iph->daddr;
             __u16 l3_offset = ((iph->ihl)<<2);
+	    /*Skip host loopback as these entries often flood the table*/
+	    /*Assuming loopback addresses would never be used directly in the context of
+	     * pods and services. It would be the host address if packet is self directed*/
+	    if((v4_key.src_ip == IPV4_LOOPBACK) || (v4_key.dst_ip == IPV4_LOOPBACK)) {
+		return 1;
+	    }
             if(v4_key.l4.ip_proto == IPPROTO_TCP) {
                 struct tcphdr *tcph = (struct tcphdr *)((__u8 *)(long)(skb->data) + l3_offset);
                 if(((void *)(tcph + 1) > (void *)(long)(skb->data_end))) {
@@ -67,6 +72,7 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
                 }
 		v4_key.l4.sport = tcph->source;
 		v4_key.l4.dport = tcph->dest;
+		__builtin_memset(v4_key.l4.padding,0,sizeof(v4_key.l4.padding));
             } else if (v4_key.l4.ip_proto == IPPROTO_UDP) {
                 struct udphdr *udph = (struct udphdr *)((__u8 *)(long)skb->data + l3_offset);
                 if(((void *)(udph + 1) > (void *)(long)(skb->data_end))) {
@@ -74,6 +80,7 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
                 }
 		v4_key.l4.sport = udph->source;
 		v4_key.l4.dport = udph->dest;
+		__builtin_memset(v4_key.l4.padding,0,sizeof(v4_key.l4.padding));
             }
 	    normalize_v4_flow(&v4_key, dir); 
             value = bpf_map_lookup_elem(&v4_flow_map, &v4_key);
@@ -91,6 +98,7 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
                 return 1;
             }
         } else {
+	    __be32 ipv6_lo[4] = {0x00, 0x00, 0x00, 0x01000000};
 	    struct ipv6hdr *ip6h = (struct ipv6hdr *)((__u8 *)(long)skb->data);
 	    if(((void *)(ip6h + 1) > (void *)(long)(skb->data_end))) {
                 return 1;
@@ -99,6 +107,13 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
 	    __builtin_memcpy(&v6_key.src_ip, &ip6h->saddr, 16);
 	    __builtin_memcpy(&v6_key.dst_ip, &ip6h->daddr, 16);
             __u16 l3_offset = sizeof(struct ipv6hdr);
+	    /*Skip host loopback as these entries often flood the table*/
+	    if(((v6_key.src_ip[0] == ipv6_lo[0]) && (v6_key.src_ip[1] == ipv6_lo[1]) &&
+			    (v6_key.src_ip[2] == ipv6_lo[2]) && (v6_key.src_ip[3] == ipv6_lo[3])) ||
+		((v6_key.dst_ip[0] == ipv6_lo[0]) && (v6_key.dst_ip[1] == ipv6_lo[1]) &&
+			    (v6_key.dst_ip[2] == ipv6_lo[2]) && (v6_key.dst_ip[3] == ipv6_lo[3]))) {
+		return 1;
+	    }
             if(v6_key.l4.ip_proto == IPPROTO_TCP) {    
                 struct tcphdr *tcph = (struct tcphdr *)((__u8 *)(long)(skb->data) + l3_offset);
                 if(((void *)(tcph + 1) > (void *)(long)(skb->data_end))) {
@@ -106,6 +121,7 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
                 }
 		v6_key.l4.sport = tcph->source;
 		v6_key.l4.dport = tcph->dest;
+		__builtin_memset(v6_key.l4.padding,0,sizeof(v6_key.l4.padding));
             } else if (v6_key.l4.ip_proto == IPPROTO_UDP) {
                 struct udphdr *udph = (struct udphdr *)((__u8 *)(long)skb->data + l3_offset);
                 if(((void *)(udph + 1) > (void *)(long)(skb->data_end))) {
@@ -113,6 +129,7 @@ static __always_inline int bpf_flow_reader(struct __sk_buff *skb, enum cgroup_di
                 }
 		v6_key.l4.sport = udph->source;
 		v6_key.l4.dport = udph->dest;
+		__builtin_memset(v6_key.l4.padding,0,sizeof(v6_key.l4.padding));
             } 
 	    normalize_v6_flow(&v6_key, dir); 
             value = bpf_map_lookup_elem(&v6_flow_map, &v6_key);

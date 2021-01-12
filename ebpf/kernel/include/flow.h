@@ -8,18 +8,21 @@ enum cgroup_direction {
 
 #define IPPROTO_UDP 17
 #define IPPROTO_TCP 6
+#define IPV4_LOOPBACK 0x0100007f
 
+/*Golang libraries assume 4 byte multiples for keysize*/
 struct proto_port {
     __u8 ip_proto;
+    __u8 padding[3];
     __be16 sport;
-    __be16 dport;    
+    __be16 dport;
 };
 
 struct inet_v4_flow {
     __be32 src_ip;
     __be32 dst_ip;
     struct proto_port l4;
-};
+} ;
 
 struct flow_stats {
     __u64 out_bytes;

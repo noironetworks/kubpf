@@ -14,9 +14,10 @@ COPY get_linux.sh ./
 RUN chmod +x get_linux.sh && ./get_linux.sh
 RUN cd /src/linux/tools/bpf/bpftool && make
 
-COPY get_pahole.sh ./
-RUN chmod +x get_pahole.sh && ./get_pahole.sh
+#COPY get_pahole.sh ./
+#RUN chmod +x get_pahole.sh && ./get_pahole.sh
 
+ARG CACHEBUST=1
 RUN mkdir -p go2/src/github.com/shastrinator && \
     cd  go2/src/github.com/shastrinator && \
     git clone https://3d9c574ecf103ca32446d9022af1a5f8116b5378@github.com/shastrinator/kubpf.git && \

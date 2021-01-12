@@ -16,7 +16,7 @@ OBJ = bpf_cgroup_kern.o
 %.o: %.c
 	$(CLANG) $(CFLAGS) $(INCLUDES) -target bpf -O2 -emit-llvm -c $< -g -o - | \
 	$(LLC) -march=bpf -mattr=dwarfris -filetype=obj -o $@
-	pahole -J $@
+#	pahole -J $@
 
 all:	$(OBJ)
 

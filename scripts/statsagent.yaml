@@ -54,9 +54,34 @@ spec:
       containers:
       - name: statsagent
         image: stalactite/statsagent:latest
+        env:
+          - name: KUBERNETES_NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        volumeMounts:
+        - mountPath: /ebpf
+          name: ebpf-host-mount
+        - mountPath: /cgroup
+          name: cgroupv2-host-mount
+        - mountPath: /lib/modules
+          name: hostmodules
+          readOnly: true
         securityContext:
           capabilities:
             add:
             - SYS_ADMIN
             - NET_ADMIN
+            - SYS_MODULE
+          privileged: true
       hostNetwork: true
+      volumes:
+      - name: ebpf-host-mount
+        hostPath:
+          path: /sys/fs/bpf
+      - name: cgroupv2-host-mount
+        hostPath:
+          path: /sys/fs/cgroup
+      - name: hostmodules
+        hostPath:
+          path: /lib/modules
