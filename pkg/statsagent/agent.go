@@ -31,17 +31,18 @@ type SvcInfo struct {
 }
 
 type StatsAgent struct {
-	config      *StatsAgentConfig
-	log         *logrus.Logger
-	env         Environment
-	podInformer cache.SharedIndexInformer
-	svcInformer cache.SharedIndexInformer
-	podInfo     map[string]PodInfo
-	podIpToName map[string]string
-	svcInfo     map[string]SvcInfo
-	svcIpToName map[string]string
-	stateMutex  sync.Mutex
-	metrics     map[string]MetricsEntry
+	config         *StatsAgentConfig
+	log            *logrus.Logger
+	env            Environment
+	podInformer    cache.SharedIndexInformer
+	svcInformer    cache.SharedIndexInformer
+	podInfo        map[string]PodInfo
+	podIpToName    map[string]string
+	svcInfo        map[string]SvcInfo
+	svcIpToName    map[string]string
+	stateMutex     sync.Mutex
+	metrics        map[string]MetricsEntry
+	promSubsystems map[string]PromSubsystemEntry
 }
 
 type StatsAgentConfig struct {
@@ -75,14 +76,15 @@ func (config *StatsAgentConfig) InitFlags() {
 func NewStatsAgent(config *StatsAgentConfig, logger *logrus.Logger, env Environment) *StatsAgent {
 
 	statsAgent := &StatsAgent{
-		config:      config,
-		log:         logger,
-		env:         env,
-		podInfo:     make(map[string]PodInfo),
-		podIpToName: make(map[string]string),
-		svcInfo:     make(map[string]SvcInfo),
-		svcIpToName: make(map[string]string),
-		metrics:     make(map[string]MetricsEntry),
+		config:         config,
+		log:            logger,
+		env:            env,
+		podInfo:        make(map[string]PodInfo),
+		podIpToName:    make(map[string]string),
+		svcInfo:        make(map[string]SvcInfo),
+		svcIpToName:    make(map[string]string),
+		metrics:        make(map[string]MetricsEntry),
+		promSubsystems: make(map[string]PromSubsystemEntry),
 	}
 	return statsAgent
 }

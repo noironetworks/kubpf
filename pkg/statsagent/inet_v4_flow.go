@@ -139,6 +139,8 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 			addFlowStats(&metric.podStatsMap[podStatsKey].Stats, &valueOut)
 			metric.podStatsMap[podStatsKey].Aging_counter = 0
 			metric.podStatsMap[podStatsKey].TimeStamp = t
+			promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+			metric.agent.SetPodSvcGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
 			continue
 		}
 		if currStats.Stats == valueOut {
@@ -163,6 +165,8 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 		addFlowStats(&metric.podStatsMap[podStatsKey].Stats, diffStats)
 		metric.podStatsMap[podStatsKey].Aging_counter = 0
 		metric.podStatsMap[podStatsKey].TimeStamp = t
+		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodSvcGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
 	}
 	var toDeletePodStatsList []PodStatsKey
 	for k, v := range metric.podStatsMap {

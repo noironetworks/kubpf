@@ -102,6 +102,7 @@ func (env *K8sEnvironment) Init(agent *StatsAgent) error {
 	//env.agent.serviceEndPoints.InitClientInformer(env.kubeClient)
 	//env.agent.initNamespaceInformerFromClient(env.kubeClient)
 	env.agent.log.Debug("Registering Metrics")
-	env.agent.RegisterMetrics()
+	env.agent.registerMetrics()
+	env.agent.registerPrometheusMetrics()
 	return nil
 }

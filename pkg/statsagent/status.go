@@ -17,6 +17,7 @@ package statsagent
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"net/http"
 )
 
@@ -29,6 +30,8 @@ func (agent *StatsAgent) RunStatus() {
 		agent.log.Info("Status server is disabled")
 		return
 	}
+
+	http.Handle("/metrics", promhttp.Handler())
 
 	http.HandleFunc("/status", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

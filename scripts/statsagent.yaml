@@ -46,6 +46,9 @@ spec:
     metadata:
       labels:
         name: statsagent
+      annotations:
+        prometheus.io/scrape_port: "8010"
+        prometheus.io/scrape: "true"
     spec:
       serviceAccountName: statsagent
       tolerations:
