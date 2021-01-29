@@ -65,18 +65,22 @@ func (flow *inet_v4_flow) GetDPort() string {
 
 //Interface MetricsEntry
 type InetV4FlowMetricsEntry struct {
-	baseMap     map[inet_v4_flow]*FlowStatsEntry
-	podStatsMap map[PodStatsKey]*FlowStatsEntry
-	agent       *StatsAgent
+	baseMap       map[inet_v4_flow]*FlowStatsEntry
+	podStatsMap   map[PodStatsKey]*FlowStatsEntry
+	svcStatsMap   map[PodStatsKey]*FlowStatsEntry
+	knownStatsMap map[PodStatsKey]*FlowStatsEntry
+	agent         *StatsAgent
 	//	agingAck    chan bool
 	stateMutex sync.Mutex
 }
 
 func NewInetV4FlowMetricsEntry(agent *StatsAgent) *InetV4FlowMetricsEntry {
 	return &InetV4FlowMetricsEntry{
-		baseMap:     make(map[inet_v4_flow]*FlowStatsEntry),
-		podStatsMap: make(map[PodStatsKey]*FlowStatsEntry),
-		agent:       agent,
+		baseMap:       make(map[inet_v4_flow]*FlowStatsEntry),
+		podStatsMap:   make(map[PodStatsKey]*FlowStatsEntry),
+		svcStatsMap:   make(map[PodStatsKey]*FlowStatsEntry),
+		knownStatsMap: make(map[PodStatsKey]*FlowStatsEntry),
+		agent:         agent,
 		//		agingAck:    make(chan bool),
 	}
 }
@@ -104,6 +108,136 @@ func (metric *InetV4FlowMetricsEntry) Init() {
 	//metric.agingAck <- true
 }
 
+func (metric *InetV4FlowMetricsEntry) mergeStats(keyType int, podStatsKey PodStatsKey, stats *FlowStats, t *time.Time) {
+	copiedStats := *stats
+	switch keyType {
+	case FROM_POD_KEY:
+		(&podStatsKey).clear(1)
+		if _, cok := metric.podStatsMap[podStatsKey]; !cok {
+			metric.podStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
+	case TO_POD_KEY:
+		(&podStatsKey).swap()
+		(&podStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.podStatsMap[podStatsKey]; !cok {
+			metric.podStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
+	case FROM_SVC_KEY:
+		(&podStatsKey).clear(1)
+		if _, cok := metric.svcStatsMap[podStatsKey]; !cok {
+			metric.svcStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[podStatsKey].Stats)
+	case TO_SVC_KEY:
+		(&podStatsKey).swap()
+		(&podStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.svcStatsMap[podStatsKey]; !cok {
+			metric.svcStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[podStatsKey].Stats)
+	case FROM_POD_KEY | TO_POD_KEY:
+		srcPodStatsKey := podStatsKey
+		(&srcPodStatsKey).clear(1)
+		if _, cok := metric.podStatsMap[srcPodStatsKey]; !cok {
+			metric.podStatsMap[srcPodStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[srcPodStatsKey].add(&copiedStats, t)
+		promMetricsKey := srcPodStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[srcPodStatsKey].Stats)
+		dstPodStatsKey := podStatsKey
+		(&dstPodStatsKey).swap()
+		(&dstPodStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.podStatsMap[dstPodStatsKey]; !cok {
+			metric.podStatsMap[dstPodStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[dstPodStatsKey].add(&copiedStats, t)
+		promMetricsKey = dstPodStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[dstPodStatsKey].Stats)
+	case FROM_SVC_KEY | TO_SVC_KEY:
+		srcSvcStatsKey := podStatsKey
+		(&srcSvcStatsKey).clear(1)
+		if _, cok := metric.svcStatsMap[srcSvcStatsKey]; !cok {
+			metric.svcStatsMap[srcSvcStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[srcSvcStatsKey].add(&copiedStats, t)
+		promMetricsKey := srcSvcStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[srcSvcStatsKey].Stats)
+		dstSvcStatsKey := podStatsKey
+		(&dstSvcStatsKey).swap()
+		(&dstSvcStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.svcStatsMap[dstSvcStatsKey]; !cok {
+			metric.svcStatsMap[dstSvcStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[dstSvcStatsKey].add(&copiedStats, t)
+		promMetricsKey = dstSvcStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[dstSvcStatsKey].Stats)
+	case FROM_POD_KEY | TO_SVC_KEY:
+		srcPodStatsKey := podStatsKey
+		(&srcPodStatsKey).clear(1)
+		if _, cok := metric.podStatsMap[srcPodStatsKey]; !cok {
+			metric.podStatsMap[srcPodStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[srcPodStatsKey].add(&copiedStats, t)
+		promMetricsKey := srcPodStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[srcPodStatsKey].Stats)
+		dstSvcStatsKey := podStatsKey
+		(&dstSvcStatsKey).swap()
+		(&dstSvcStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.svcStatsMap[dstSvcStatsKey]; !cok {
+			metric.svcStatsMap[dstSvcStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[dstSvcStatsKey].add(&copiedStats, t)
+		promMetricsKey = dstSvcStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[dstSvcStatsKey].Stats)
+		if _, cok := metric.knownStatsMap[podStatsKey]; !cok {
+			metric.knownStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.knownStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey = podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodSvcGauge(promMetricsKey, &metric.knownStatsMap[podStatsKey].Stats)
+	case FROM_SVC_KEY | TO_POD_KEY:
+		srcSvcStatsKey := podStatsKey
+		(&srcSvcStatsKey).clear(1)
+		if _, cok := metric.svcStatsMap[srcSvcStatsKey]; !cok {
+			metric.svcStatsMap[srcSvcStatsKey] = &FlowStatsEntry{}
+		}
+		metric.svcStatsMap[srcSvcStatsKey].add(&copiedStats, t)
+		promMetricsKey := srcSvcStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetSvcGauge(promMetricsKey, &metric.svcStatsMap[srcSvcStatsKey].Stats)
+		dstPodStatsKey := podStatsKey
+		(&dstPodStatsKey).swap()
+		(&dstPodStatsKey).clear(1)
+		(&copiedStats).swap()
+		if _, cok := metric.podStatsMap[dstPodStatsKey]; !cok {
+			metric.podStatsMap[dstPodStatsKey] = &FlowStatsEntry{}
+		}
+		metric.podStatsMap[dstPodStatsKey].add(&copiedStats, t)
+		promMetricsKey = dstPodStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodGauge(promMetricsKey, &metric.podStatsMap[dstPodStatsKey].Stats)
+		if _, cok := metric.knownStatsMap[podStatsKey]; !cok {
+			metric.knownStatsMap[podStatsKey] = &FlowStatsEntry{}
+		}
+		metric.knownStatsMap[podStatsKey].add(&copiedStats, t)
+		promMetricsKey = podStatsKey.toPromMetricsKey(metric.agent)
+		metric.agent.SetPodSvcGauge(promMetricsKey, &metric.knownStatsMap[podStatsKey].Stats)
+	}
+}
+
 func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 	metric.agent.log.Debug("Waiting for channel")
 	//<-metric.agingAck
@@ -127,20 +261,8 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 			metric.baseMap[keyOut].Stats = valueOut
 			metric.baseMap[keyOut].Aging_counter = 0
 			metric.baseMap[keyOut].TimeStamp = t
-			podStatsKey, pok := getPodStatsKey(metric.agent, &keyOut)
-			if !pok {
-				continue
-			}
-			_, cok := metric.podStatsMap[podStatsKey]
-			if !cok {
-				metric.agent.log.Debug("Added podStatsKey", podStatsKey.Endpoints[0], "->", podStatsKey.Endpoints[1])
-				metric.podStatsMap[podStatsKey] = &FlowStatsEntry{}
-			}
-			addFlowStats(&metric.podStatsMap[podStatsKey].Stats, &valueOut)
-			metric.podStatsMap[podStatsKey].Aging_counter = 0
-			metric.podStatsMap[podStatsKey].TimeStamp = t
-			promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
-			metric.agent.SetPodSvcGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
+			podStatsKey, keyType := getPodStatsKey(metric.agent, &keyOut)
+			metric.mergeStats(keyType, podStatsKey, &valueOut, &t)
 			continue
 		}
 		if currStats.Stats == valueOut {
@@ -153,22 +275,23 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 		metric.baseMap[keyOut].Stats = valueOut
 		metric.baseMap[keyOut].Aging_counter = 0
 		metric.baseMap[keyOut].TimeStamp = t
-		podStatsKey, pok := getPodStatsKey(metric.agent, &keyOut)
-		if !pok {
-			continue
-		}
+		podStatsKey, keyType := getPodStatsKey(metric.agent, &keyOut)
 		diffStats := diffFlowStats(&currStats.Stats, &valueOut)
-		if _, psok := metric.podStatsMap[podStatsKey]; !psok {
-			metric.agent.log.Error("PodStatsKey missing for ", podStatsKey.Endpoints[0], "->", podStatsKey.Endpoints[1])
-			continue
-		}
-		addFlowStats(&metric.podStatsMap[podStatsKey].Stats, diffStats)
-		metric.podStatsMap[podStatsKey].Aging_counter = 0
-		metric.podStatsMap[podStatsKey].TimeStamp = t
-		promMetricsKey := podStatsKey.toPromMetricsKey(metric.agent)
-		metric.agent.SetPodSvcGauge(promMetricsKey, &metric.podStatsMap[podStatsKey].Stats)
+		metric.mergeStats(keyType, podStatsKey, diffStats, &t)
 	}
-	var toDeletePodStatsList []PodStatsKey
+	var toDeleteKnownStatsList, toDeletePodStatsList, toDeleteSvcStatsList []PodStatsKey
+	for k, v := range metric.knownStatsMap {
+		if v.TimeStamp != t {
+			metric.knownStatsMap[k].Aging_counter++
+			if metric.knownStatsMap[k].Aging_counter >= 3 {
+				toDeleteKnownStatsList = append(toDeleteKnownStatsList, k)
+			}
+		}
+		metric.agent.log.Debugf("%s<->%s Out:%d bytes %d packets In: %d bytes %d packets, aging_count:%d",
+			k.Endpoints[0], k.Endpoints[1], v.Stats.Out_bytes, v.Stats.Out_packets, v.Stats.In_bytes, v.Stats.In_packets,
+			v.Aging_counter)
+
+	}
 	for k, v := range metric.podStatsMap {
 		if v.TimeStamp != t {
 			metric.podStatsMap[k].Aging_counter++
@@ -179,7 +302,17 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 		metric.agent.log.Debugf("%s<->%s Out:%d bytes %d packets In: %d bytes %d packets, aging_count:%d",
 			k.Endpoints[0], k.Endpoints[1], v.Stats.Out_bytes, v.Stats.Out_packets, v.Stats.In_bytes, v.Stats.In_packets,
 			v.Aging_counter)
-
+	}
+	for k, v := range metric.svcStatsMap {
+		if v.TimeStamp != t {
+			metric.svcStatsMap[k].Aging_counter++
+			if metric.svcStatsMap[k].Aging_counter >= 3 {
+				toDeleteSvcStatsList = append(toDeleteSvcStatsList, k)
+			}
+		}
+		metric.agent.log.Debugf("%s<->%s Out:%d bytes %d packets In: %d bytes %d packets, aging_count:%d",
+			k.Endpoints[0], k.Endpoints[1], v.Stats.Out_bytes, v.Stats.Out_packets, v.Stats.In_bytes, v.Stats.In_packets,
+			v.Aging_counter)
 	}
 	m.Close()
 	metric.stateMutex.Unlock()
@@ -203,9 +336,17 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 			}
 			delete(metric.baseMap, toDelete)
 		}
+		for _, toDeleteKnownStats := range toDeleteKnownStatsList {
+			metric.agent.log.Debug("Deleting podStatsKey", toDeleteKnownStats.Endpoints[0], "->", toDeleteKnownStats.Endpoints[1])
+			delete(metric.knownStatsMap, toDeleteKnownStats)
+		}
 		for _, toDeletePodStats := range toDeletePodStatsList {
 			metric.agent.log.Debug("Deleting podStatsKey", toDeletePodStats.Endpoints[0], "->", toDeletePodStats.Endpoints[1])
 			delete(metric.podStatsMap, toDeletePodStats)
+		}
+		for _, toDeleteSvcStats := range toDeleteSvcStatsList {
+			metric.agent.log.Debug("Deleting podStatsKey", toDeleteSvcStats.Endpoints[0], "->", toDeleteSvcStats.Endpoints[1])
+			delete(metric.svcStatsMap, toDeleteSvcStats)
 		}
 		//metric.agingAck <- true
 

@@ -25,6 +25,11 @@ type FlowStats struct {
 	In_packets  uint64
 }
 
+func (fs *FlowStats) swap() {
+	fs.Out_packets, fs.In_packets = fs.In_packets, fs.Out_packets
+	fs.Out_bytes, fs.In_bytes = fs.In_bytes, fs.Out_bytes
+}
+
 func addFlowStats(baseStats *FlowStats, incStats *FlowStats) {
 	baseStats.Out_bytes += incStats.Out_bytes
 	baseStats.Out_packets += incStats.Out_packets
@@ -52,6 +57,14 @@ type PodStatsKey struct {
 	Endpoints [2]string
 }
 
+func (psk *PodStatsKey) clear(ep int) {
+	psk.Endpoints[ep] = ""
+}
+
+func (psk *PodStatsKey) swap() {
+	psk.Endpoints[0], psk.Endpoints[1] = psk.Endpoints[1], psk.Endpoints[0]
+}
+
 type PromMetricsKey struct {
 	podNamespace [2]string
 	podName      [2]string
@@ -61,69 +74,112 @@ type PromMetricsKey struct {
 	metricName   string
 }
 
+const (
+	_            = iota
+	FROM_POD_KEY = 1 << (iota - 1)
+	TO_POD_KEY
+	FROM_SVC_KEY
+	TO_SVC_KEY
+)
+
 func (key *PodStatsKey) toPromMetricsKey(agent *StatsAgent) *PromMetricsKey {
 	var promMetricsKey PromMetricsKey
+	var keyType int
 	svcCount := 0
 	podCount := 0
-	reversedFlow := false
 	for i := 0; i < 2; i++ {
 		splitStrings := strings.SplitN(key.Endpoints[i], "/", 3)
-		if len(splitStrings) == 3 {
+		switch {
+		case len(splitStrings) == 3:
 			promMetricsKey.svcNamespace[svcCount] = splitStrings[0]
 			promMetricsKey.svcName[svcCount] = splitStrings[1]
 			promMetricsKey.svcScope[svcCount] = splitStrings[2]
 			svcCount++
-			if podCount == 0 {
-				reversedFlow = true
+			if i == 0 {
+				keyType |= FROM_SVC_KEY
+			} else {
+				keyType |= TO_SVC_KEY
 			}
-		} else {
+		case len(splitStrings) == 2:
 			promMetricsKey.podNamespace[podCount] = splitStrings[0]
 			promMetricsKey.podName[podCount] = splitStrings[1]
 			podCount++
+			if i == 0 {
+				keyType |= FROM_POD_KEY
+			} else {
+				keyType |= TO_POD_KEY
+			}
+		default:
+			// It is not a local pod or an internal IP.
+			// Fix when adding svc to ext stats
 		}
 	}
-	switch {
-	case podCount == 1 && svcCount == 1:
-		if !reversedFlow {
-			promMetricsKey.metricName = "pod_svc_stats"
-		} else {
-			promMetricsKey.metricName = "svc_pod_stats"
-		}
+	switch keyType {
+	case FROM_POD_KEY | TO_SVC_KEY:
+		promMetricsKey.metricName = "pod_svc_stats"
+	case FROM_SVC_KEY | TO_POD_KEY:
+		promMetricsKey.metricName = "svc_pod_stats"
+	case FROM_SVC_KEY | TO_SVC_KEY:
+		promMetricsKey.metricName = "no_explicit_stats"
+	case FROM_POD_KEY | TO_POD_KEY:
+		promMetricsKey.metricName = "no_explicit_stats"
+	case TO_POD_KEY, FROM_POD_KEY:
+		promMetricsKey.metricName = "pod_stats"
+	case FROM_SVC_KEY, TO_SVC_KEY:
+		promMetricsKey.metricName = "svc_stats"
 	}
 	return &promMetricsKey
 }
 
-func getPodStatsKey(agent *StatsAgent, keyOut FlowKey) (PodStatsKey, bool) {
+func getPodStatsKey(agent *StatsAgent, keyOut FlowKey) (PodStatsKey, int) {
 	var podStatsKey PodStatsKey
-	var foundEndpoints bool = false
+	var keyType int
 	srcName, sok := agent.podIpToName[keyOut.GetSrcIp()]
 	dstName, dok := agent.podIpToName[keyOut.GetDstIp()]
 	if sok {
 		podStatsKey.Endpoints[0] = srcName
+		keyType |= FROM_POD_KEY
 	}
 	if dok {
 		podStatsKey.Endpoints[1] = dstName
+		keyType |= TO_POD_KEY
 	}
 	srcName, sok = agent.svcIpToName[keyOut.GetSrcIp()]
 	dstName, dok = agent.svcIpToName[keyOut.GetDstIp()]
 	if sok {
 		srcName += "/" + agent.svcInfo[srcName].SvcType
 		podStatsKey.Endpoints[0] = srcName
+		keyType |= FROM_SVC_KEY
 	}
 	if dok {
 		dstName += "/" + agent.svcInfo[dstName].SvcType
 		podStatsKey.Endpoints[1] = dstName
+		keyType |= TO_SVC_KEY
 	}
-	if podStatsKey.Endpoints[0] != "" && podStatsKey.Endpoints[1] != "" {
-		foundEndpoints = true
+	if podStatsKey.Endpoints[0] == "" {
+		podStatsKey.Endpoints[0] = keyOut.GetSrcIp()
 	}
-	return podStatsKey, foundEndpoints
+	if podStatsKey.Endpoints[1] == "" {
+		podStatsKey.Endpoints[1] = keyOut.GetDstIp()
+	}
+
+	return podStatsKey, keyType
 }
 
 type FlowStatsEntry struct {
 	Stats         FlowStats
 	Aging_counter uint8
 	TimeStamp     time.Time
+}
+
+func (fs *FlowStatsEntry) add(stats *FlowStats, t *time.Time) {
+	addFlowStats(&fs.Stats, stats)
+	fs.Aging_counter = 0
+	fs.TimeStamp = *t
+}
+
+func (fs *FlowStatsEntry) swap() {
+	fs.Stats.swap()
 }
 
 type MetricsEntry interface {
@@ -182,6 +238,10 @@ func (agent *StatsAgent) registerPrometheusSubsystem(entry PromSubsystemEntry) {
 func (agent *StatsAgent) registerPrometheusMetrics() {
 	var entry PromSubsystemEntry = NewPodSvcPromSubsystemEntry()
 	agent.registerPrometheusSubsystem(entry)
+	entry = NewSvcPromSubsystemEntry()
+	agent.registerPrometheusSubsystem(entry)
+	entry = NewPodPromSubsystemEntry()
+	agent.registerPrometheusSubsystem(entry)
 }
 
 //Prometheus wrappers
@@ -200,91 +260,4 @@ type PromSubsystemEntry interface {
 	SubsystemName() string
 	RegisterPrometheus(agent *StatsAgent)
 	GetGaugeVec(string) *prometheus.GaugeVec
-}
-
-//PodSvcStats Prometheus Entries
-var PodSvcPromMetrics = [...]string{
-	"pod_to_svc_bytes",
-	"pod_to_svc_packets",
-	"svc_to_pod_bytes",
-	"svc_to_pod_packets",
-}
-
-var PodSvcPromHelp = [...]string{
-	"pod to service bytes",
-	"pod to service packets",
-	"service to pod bytes",
-	"service to pod packets",
-}
-
-type PodSvcPromSubsystemEntry struct {
-	*PromSubsystem
-}
-
-func (agent *StatsAgent) SetPodSvcGauge(
-	key *PromMetricsKey,
-	stats *FlowStats) {
-	var value [4]uint64
-	value[0] = stats.Out_bytes
-	value[1] = stats.Out_packets
-	value[2] = stats.In_bytes
-	value[3] = stats.In_packets
-	if key.metricName == "svc_pod_stats" {
-		value[0], value[2] = value[2], value[0]
-		value[1], value[3] = value[3], value[1]
-	} else if key.metricName != "pod_svc_stats" {
-		return
-	}
-	for i := 0; i < 4; i++ {
-		agent.promSubsystems["pod_svc_stats"].GetGaugeVec(PodSvcPromMetrics[i]).With(prometheus.Labels{
-			"pod_namespace": key.podNamespace[0],
-			"pod_name":      key.podName[0],
-			"svc_namespace": key.svcNamespace[0],
-			"svc_scope":     key.svcScope[0],
-			"svc_name":      key.svcName[0]}).Set(float64(value[i]))
-	}
-}
-
-func (entry *PodSvcPromSubsystemEntry) SubsystemName() string {
-	return entry.Subsystem
-}
-
-func (entry *PodSvcPromSubsystemEntry) RegisterPrometheus(agent *StatsAgent) {
-	for i, metricName := range PodSvcPromMetrics {
-		gauge :=
-			prometheus.NewGaugeVec(prometheus.GaugeOpts{
-				Namespace: "statsagent",
-				Subsystem: "pod_svc_stats",
-				Name:      metricName,
-				Help:      PodSvcPromHelp[i],
-			}, []string{
-				"pod_namespace", "pod_name", "svc_namespace", "svc_name", "svc_scope",
-			})
-		entry.Gauges[metricName] = &PromGauge{
-			Name:  metricName,
-			Cache: gauge,
-		}
-		err := prometheus.Register(gauge)
-		if err != nil {
-			agent.log.Error("Failed to register ", metricName, " with Prometheus: ", err)
-		} else {
-			agent.log.Debug("Registered ", metricName, " with Prometheus: ")
-		}
-	}
-}
-
-func (entry *PodSvcPromSubsystemEntry) GetGaugeVec(metricName string) *prometheus.GaugeVec {
-	return entry.Gauges[metricName].Cache
-}
-
-func NewPodSvcPromSubsystemEntry() PromSubsystemEntry {
-	promSubsystem := &PromSubsystem{
-		Subsystem: "pod_svc_stats",
-		Gauges:    make(map[string]*PromGauge),
-	}
-
-	return &PodSvcPromSubsystemEntry{
-		PromSubsystem: promSubsystem,
-	}
-
 }
