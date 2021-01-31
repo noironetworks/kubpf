@@ -35,3 +35,33 @@ By default cgroupv2 file system is mounted at /sys/fs/cgroup/unified. Default ku
 uses the cgroup heirarchy at /sys/fs/cgroup/unified/kubepods.slice. Right now these paths are hardcoded.
 Additionally cgroupv1 net controllers cause issues with cgroupv2 attachment and these need to be disabled
 with the boot option cgroup_no_v1=net_prio,net_cls.
+
+## Prometheus
+
+Metrics are exported on the container port 8010 for now. Following metrics are available: 
+
+| pod_svc_stats | Pod to service stats |
+| ------------- | -------------------- |
+| statsagent_pod_svc_stats_pod_to_svc_bytes | pod to service bytes |
+| statsagent_pod_svc_stats_pod_to_svc_packets | pod to service packets |
+| statsagent_pod_svc_stats_svc_to_pod_bytes | service to pod bytes |
+| statsagent_pod_svc_stats_svc_to_pod_packets | service to pod packets |
+
+| pod_stats | Pod stats |
+| --------- | --------- |
+| statsagent_pod_stats_pod_tx_bytes | pod egress bytes |
+| statsagent_pod_stats_pod_tx_packets | pod egress packets |
+| statsagent_pod_stats_pod_rx_bytes | pod ingress bytes |
+| statsagent_pod_stats_pod_rx_packets | pod ingress packets |
+
+| svc_stats | Service stats |
+| --------- | ------------ |
+| statsagent_svc_stats_svc_tx_bytes | service egress bytes | 
+| statsagent_svc_stats_svc_tx_packets | service egress packets |
+| statsagent_svc_stats_svc_rx_bytes | service ingress packets |
+| statsagent_svc_stats_svc_rx_packets | service ingress packets |
+
+![pod_svc_stats](images/pod_svc_stats.png)
+![svc_stats](images/svc_stats.png)
+![pod_stats](images/pod_stats.png)
+
