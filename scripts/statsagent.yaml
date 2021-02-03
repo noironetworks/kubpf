@@ -12,7 +12,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: monitoring-agents
+  name: statsagent-role
 rules:
 - apiGroups: [""]
   resources: ["pods","services", "endpoints", "namespaces"]
@@ -21,14 +21,14 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: monitor-binding
+  name: statsagent-role-binding
 subjects:
 - kind: ServiceAccount
   name: statsagent
   namespace: statsagent-system
 roleRef:
   kind: ClusterRole
-  name: monitoring-agents
+  name: statsagent-role
   apiGroup: rbac.authorization.k8s.io
 ---
 apiVersion: apps/v1
@@ -62,6 +62,9 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+          - name: CGROUP_ROOT
+            # Change this suitably for the environment
+            value: "/sys/fs/cgroup/unified/kubepods.slice"
         volumeMounts:
         - mountPath: /ebpf
           name: ebpf-host-mount

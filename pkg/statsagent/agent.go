@@ -56,7 +56,10 @@ type StatsAgentConfig struct {
 	NodeName string `json:"node-name,omitempty"`
 
 	// Path to which ebpf maps should be pinned, some where in /sys/fs/bpf
-	EbpfPinnedMapPath string `json:"ebpf-pinnedmappath,omitempty"`
+	EbpfMapDir string `json:"ebpf-map-dir,omitempty"`
+
+	// Cgroup root for kubernetes
+	CgroupRoot string `json:"cgroup-root,omitempty"`
 
 	// Interval in which stats should be scanned
 	StatsInterval int `json: stats-interval in seconds,omitempty`
@@ -67,7 +70,8 @@ type StatsAgentConfig struct {
 
 func (config *StatsAgentConfig) InitFlags() {
 	flag.StringVar(&config.LogLevel, "log-level", "debug", "Log level")
-	flag.StringVar(&config.EbpfPinnedMapPath, "ebpf-pinnedmappath", "/sys/fs/bpf/pinned_maps", "Path to which ebpf maps should be pinned")
+	flag.StringVar(&config.EbpfMapDir, "ebpf-map-dir", "/sys/fs/bpf/pinned_maps", "Path to which ebpf maps should be pinned")
+	flag.StringVar(&config.CgroupRoot, "cgroup-root", "/sys/fs/cgroup/unified/kubepods.slice", "Cgroup root for monitored instance of kubernetes")
 	flag.StringVar(&config.NodeName, "node-name", "", "Name of Kubernetes node on which this agent is running")
 	flag.IntVar(&config.StatusPort, "status-port", 8010, "TCP port to run status server on (or 0 to disable)")
 	flag.IntVar(&config.StatsInterval, "stats-interval", 120, "Time in seconds between stats collection runs")

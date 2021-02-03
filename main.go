@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"github.com/shastrinator/kubpf/pkg/statsagent"
 	"github.com/sirupsen/logrus"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -24,6 +25,7 @@ func main() {
 	log := logrus.New()
 	conf := &statsagent.StatsAgentConfig{}
 	conf.InitFlags()
+	flag.Parse()
 	logLevel, err := logrus.ParseLevel(conf.LogLevel)
 	if err != nil {
 		panic(err.Error())

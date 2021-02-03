@@ -15,13 +15,17 @@
 package statsagent
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"github.com/sirupsen/logrus"
 
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"os"
+	"os/exec"
+	"path/filepath"
 )
 
 type Environment interface {
@@ -47,13 +51,33 @@ func NewK8sEnvironment(config *StatsAgentConfig, log *logrus.Logger) (*K8sEnviro
 		return nil, err
 	}
 
+	envCgroupRoot := os.Getenv("CGROUP_ROOT")
+	if envCgroupRoot != "" {
+		config.CgroupRoot = envCgroupRoot
+	}
+	mapDir, _ := filepath.Rel("/sys/fs/bpf", config.EbpfMapDir)
+	mapDir = "/ebpf/" + mapDir
+	config.EbpfMapDir = mapDir
+	cgroupRoot, _ := filepath.Rel("/sys/fs/cgroup", config.CgroupRoot)
+	cgroupRoot = "/cgroup/" + cgroupRoot
+	mapStr := fmt.Sprintf("EBPF_MAP_DIR=%s", mapDir)
+	cgroupStr := fmt.Sprintf("CGROUP_MOUNT=%s", cgroupRoot)
+	cmd := exec.Command("/bin/load_attach_bpf_cgroup.sh")
+	cmd.Env = append(os.Environ(), mapStr, cgroupStr)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err := cmd.Run()
+	log.Debug(out.String())
+	if err != nil {
+		log.Error(err.Error())
+	}
+
 	log.WithFields(logrus.Fields{
 		"node-name": config.NodeName,
 	}).Info("Setting up Kubernetes environment")
 
 	log.Debug("Initializing kubernetes client")
 	var restconfig *restclient.Config
-	var err error
 	// creates the in-cluster config
 	restconfig, err = restclient.InClusterConfig()
 	if err != nil {

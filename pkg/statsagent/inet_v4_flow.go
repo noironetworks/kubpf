@@ -239,11 +239,11 @@ func (metric *InetV4FlowMetricsEntry) mergeStats(keyType int, podStatsKey PodSta
 }
 
 func (metric *InetV4FlowMetricsEntry) UpdateStats() {
-	metric.agent.log.Debug("Waiting for channel")
 	//<-metric.agingAck
-	metric.agent.log.Debug("Got channel")
 	metric.stateMutex.Lock()
-	m, err := ebpf.LoadPinnedMap("/ebpf/pinned_maps/v4_flow_map")
+	mapPath := metric.agent.config.EbpfMapDir + "/" + "v4_flow_map"
+	metric.agent.log.Debug("Reading map ", mapPath)
+	m, err := ebpf.LoadPinnedMap(mapPath)
 	if err != nil {
 		metric.agent.log.Error(err)
 		return
@@ -320,7 +320,7 @@ func (metric *InetV4FlowMetricsEntry) UpdateStats() {
 	go func() {
 		metric.stateMutex.Lock()
 		defer metric.stateMutex.Unlock()
-		m2, err2 := ebpf.LoadPinnedMap("/ebpf/pinned_maps/v4_flow_map")
+		m2, err2 := ebpf.LoadPinnedMap(mapPath)
 		defer m2.Close()
 		if err2 != nil {
 			metric.agent.log.Error(err2)
