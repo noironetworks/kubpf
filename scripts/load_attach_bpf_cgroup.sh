@@ -1,5 +1,8 @@
 #!/bin/sh
 
+set -e
+set +x
+
 if [ -z $BPFTOOL ]
 then
 	BPFTOOL=/bin/bpftool
@@ -10,12 +13,12 @@ then
 	EBPF_MOUNT=/ebpf
 fi
 
-if [ -z $EBPF_MAP_DIR]
+if [ -z $EBPF_MAP_DIR ]
 then
 	EBPF_MAP_DIR=$EBPF_MOUNT/pinned_maps
 fi
 
-if [ -z $EBPF_PROG_DIR]
+if [ -z $EBPF_PROG_DIR ]
 then
 	EBPF_PROG_DIR=$EBPF_MOUNT/prog
 fi

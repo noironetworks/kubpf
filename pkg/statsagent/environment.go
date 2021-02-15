@@ -60,12 +60,13 @@ func NewK8sEnvironment(config *StatsAgentConfig, log *logrus.Logger) (*K8sEnviro
 	config.EbpfMapDir = mapDir
 	cgroupRoot, _ := filepath.Rel("/sys/fs/cgroup", config.CgroupRoot)
 	cgroupRoot = "/cgroup/" + cgroupRoot
+	log.Debug("Using cgroup ", cgroupRoot, " map directory ", mapDir)
 	mapStr := fmt.Sprintf("EBPF_MAP_DIR=%s", mapDir)
 	cgroupStr := fmt.Sprintf("CGROUP_MOUNT=%s", cgroupRoot)
 	cmd := exec.Command("/bin/load_attach_bpf_cgroup.sh")
 	cmd.Env = append(os.Environ(), mapStr, cgroupStr)
 	var out bytes.Buffer
-	cmd.Stdout = &out
+	cmd.Stderr = &out
 	err := cmd.Run()
 	log.Debug(out.String())
 	if err != nil {

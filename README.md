@@ -39,24 +39,26 @@ with the boot option cgroup_no_v1=net_prio,net_cls.
 ### Kind
 
 Boot option mentioned previously is also required for kind.
-In the deployment file set CGROUP_ROOT to the cgroup root that docker uses for the specific kind node. This is not
-easy to do manually and helm support needs to be added. Best to try on a single node cluster for now.
-To obtain the cgroup root for a single node.
-
+In the deployment file set CGROUP_ROOT to the cgroup root that docker uses for the specific kind node.
+This is not easy to do manually and helm support needs to be added.
+These steps only work for a single kind node deployment.
 ```
-docker ps
-CONTAINER ID   IMAGE                   COMMAND                  CREATED       STATUS          PORTS                       NAMES
-64522c5fcf55   kindest/node:v1.18.15   "/usr/local/bin/entr…"   3 hours ago   Up 27 minutes   127.0.0.1:37029->6443/tcp   kind-control-plane
-docker inspect 64522c5fcf55 | grep Pid
-            "Pid": 1165,
-sudo cat /proc/1165/cgroup
-<..>
-11:pids:/system.slice/docker-64522c5fcf554c142320fd43883b93329dc833a26c7d6397d28a6b106ddb308e.scope
-<..>
-
+cd scripts
+./deploy_kind.sh
 ```
-In this case CGROUP_ROOT environment variable should be set to
-`/sys/fs/cgroup/unified/system.slice/docker-64522c5fcf554c142320fd43883b93329dc833a26c7d6397d28a6b106ddb308e.scope`
+
+### Vagrant
+
+A vagrant VM with Ubuntu 20.10 and single node kind deployment with stats can be brought up by using the directory vagrant-kind.
+Note that a reboot is necessary to apply the boot option
+```
+cd vagrant
+vagrant up
+vagrant ssh
+sudo shutdown -r now
+vagrant ssh
+./run.sh
+```
 
 ## Prometheus
 
