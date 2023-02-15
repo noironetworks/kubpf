@@ -3,21 +3,17 @@ module github.com/shastrinator/kubpf
 go 1.13
 
 require (
-	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cilium/ebpf v0.0.0-20191025125908-95b36a581eed
 	github.com/evanphx/json-patch v4.5.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/googleapis/gnostic v0.3.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.4 // indirect
-	github.com/json-iterator/go v1.1.10 // indirect
 	github.com/onsi/gomega v1.10.1 // indirect
-	github.com/prometheus/client_golang v1.0.0
-	github.com/prometheus/procfs v0.0.11 // indirect
-	github.com/sirupsen/logrus v1.4.2
+	github.com/prometheus/client_golang v1.11.1
+	github.com/sirupsen/logrus v1.6.0
 	go.uber.org/atomic v1.4.0 // indirect
 	golang.org/x/text v0.3.3 // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
 	k8s.io/api v0.18.6
 	k8s.io/apimachinery v0.18.6
 	k8s.io/client-go v0.18.6
